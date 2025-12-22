@@ -1,15 +1,7 @@
-> Only adminer runs successfully on port 8080
+> test waali files normalization, dataset mein documents ka size, pipeline mein tags,  etc k lie bnaii thi - IGNORE
 
-> port 5432 & 5000 both are non-respnosive.
+> `test_component_full.py` waali file test narration k liye bnaii thi - taaky project run krny se pehlyy dekhh skein output
 
-> .env file needs to be added
+> `add_user_narration_column.py` waali file run krni zaroori haii reason being database mein ye column exist nhii krta currently
 
-> docker - OG docker file - imran
-
-> docker1 - single container with all dependencies
-
-> try and update
-
-> test.py is for checking pipeline tags validity
-
-> requirements.txt file NOT removed incase of emergency fallback
+## Pipeline separate kryy haii dono

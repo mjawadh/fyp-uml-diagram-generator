@@ -13,6 +13,8 @@ const DIAGRAM_TYPES = [
   { value: 'use_case', label: '🎯 Use Case Diagram' },
   { value: 'sequence', label: '📈 Sequence Diagram' },
   { value: 'activity', label: '⚙️ Activity Diagram' },
+  { value: 'component', label: '🧩 Component Diagram' },
+  { value: 'deployment', label: '🚀 Deployment Diagram' },
 ]
 
 export default function ProjectPage() {
@@ -92,14 +94,28 @@ export default function ProjectPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!stories.trim()) {
+    // Check if architectural diagram requires narration
+    const isArchitecturalDiagram = diagramType === 'component' || diagramType === 'deployment'
+    
+    if (isArchitecturalDiagram && !stories.trim()) {
+      toast.error(`Please enter architecture context for ${diagramType} diagram`)
+      return
+    }
+    
+    if (!isArchitecturalDiagram && !stories.trim()) {
       toast.error('Please enter at least one user story')
       return
     }
 
     setIsUpdating(true)
     try {
-      const response = await projectAPI.update(params.id, stories, diagramType)
+      // For architectural diagrams, send stories as user_narration
+      const response = await projectAPI.update(
+        params.id, 
+        isArchitecturalDiagram ? '' : stories,  // user_stories (empty for architectural)
+        diagramType,
+        isArchitecturalDiagram ? stories : ''   // user_narration (empty for behavioral)
+      )
 
       if (response.success) {
         toast.success('Diagram updated successfully!')
@@ -109,7 +125,12 @@ export default function ProjectPage() {
         const timestamp = new Date().getTime()
         setDiagramUrl(`${backendUrl}/static/${diagramType}_${params.id}.png?t=${timestamp}`)
       } else {
-        toast.error(response.message || 'Failed to update project')
+        // Handle architecture context missing error
+        if (response.error_code === 'ARCH_CONTEXT_MISSING') {
+          toast.error(response.message + '\n\n' + response.suggestion, { duration: 6000 })
+        } else {
+          toast.error(response.message || 'Failed to update project')
+        }
       }
     } catch (error) {
       toast.error(error.message || 'Failed to update project')
@@ -229,15 +250,28 @@ export default function ProjectPage() {
                 {/* Stories Input */}
                 <div>
                   <label className="block text-sm font-bold text-black mb-2">
-                    Enter your user stories (one per line)
+                    {diagramType === 'component' || diagramType === 'deployment' 
+                      ? `Enter Architecture Context for ${diagramType === 'component' ? 'Component' : 'Deployment'} Diagram`
+                      : 'Enter your user stories (one per line)'}
                   </label>
                   <textarea
                     value={stories}
                     onChange={(e) => setStories(e.target.value)}
-                    placeholder="As a user, I want to...&#10;As a customer, I want to...&#10;As an admin, I want to..."
+                    placeholder={
+                      diagramType === 'component' 
+                        ? "Describe your system components:\nThe system consists of a React Frontend, Flask Backend API, and PostgreSQL Database. The Frontend communicates with the Backend API via REST. The Backend connects to the Database for data storage. We also integrate with Stripe payment gateway as an external service."
+                        : diagramType === 'deployment'
+                        ? "Describe your deployment architecture:\nThe Frontend is deployed in a Docker container. The Backend API runs on a Web Server. The PostgreSQL database runs on a Database Server. Users access the system through a Web Browser."
+                        : "As a user, I want to...&#10;As a customer, I want to...&#10;As an admin, I want to..."
+                    }
                     rows={8}
                     className="w-full px-4 py-2 bg-white border-2 border-border-color rounded-lg text-black placeholder-muted-text focus:outline-none focus:ring-2 focus:ring-accent resize-none font-semibold text-sm"
                   />
+                  {(diagramType === 'component' || diagramType === 'deployment') && (
+                    <small className="block text-muted-text mt-2 font-bold text-xs">
+                      💡 Tip: Describe components, technologies, and how they interact. Be specific about deployment environments.
+                    </small>
+                  )}
                 </div>
 
                 {/* Diagram Type Selector */}

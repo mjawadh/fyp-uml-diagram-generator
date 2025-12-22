@@ -14,7 +14,9 @@ from uml_extractors import (
     ClassDiagramExtractor,
     UseCaseDiagramExtractor,
     SequenceDiagramExtractor,
-    ActivityDiagramExtractor
+    ActivityDiagramExtractor,
+    ComponentDiagramExtractor,
+    DeploymentDiagramExtractor
 )
 from uml_generator import DiagramGenerator
 
@@ -76,10 +78,10 @@ except OperationalError as e:
 
 
 # Directories and Model
-# Directories and Model
 PUML_DIR = "generated_puml"
 STATIC_DIR = "static"
-MODEL_PATH = "./my_uml_model/model-best"
+BEHAVIORAL_MODEL_PATH = "./behavioral_uml_model/model-best"
+ARCHITECTURE_MODEL_PATH = "./architecture_uml_model/model-best"
 
 # Load Standard Model (Syntax/Parsing)
 try:
@@ -89,16 +91,27 @@ except Exception as e:
     logger.warning(f"Failed to load en_core_web_lg: {e}. Using blank 'en' model.")
     nlp_standard = spacy.blank("en")
 
-# Load Custom NER Model
-nlp_ner = None
-if not os.path.exists(MODEL_PATH):
-    logger.warning(f"Model not found at {MODEL_PATH}. Run train_model.py first.")
+# Load Behavioral NER Model (for Class, UseCase, Sequence, Activity diagrams)
+nlp_behavioral = None
+if not os.path.exists(BEHAVIORAL_MODEL_PATH):
+    logger.warning(f"Behavioral model not found at {BEHAVIORAL_MODEL_PATH}. Run train_model.py first.")
 else:
     try:
-        nlp_ner = spacy.load(MODEL_PATH)
-        logger.info("Custom NER model loaded successfully.")
+        nlp_behavioral = spacy.load(BEHAVIORAL_MODEL_PATH)
+        logger.info("Behavioral NER model loaded successfully.")
     except Exception as e:
-        logger.error(f"Model load error: {e}.")
+        logger.error(f"Behavioral model load error: {e}.")
+
+# Load Architecture NER Model (for Component, Deployment diagrams)
+nlp_architecture = None
+if not os.path.exists(ARCHITECTURE_MODEL_PATH):
+    logger.warning(f"Architecture model not found at {ARCHITECTURE_MODEL_PATH}. Will skip architectural diagram generation until trained.")
+else:
+    try:
+        nlp_architecture = spacy.load(ARCHITECTURE_MODEL_PATH)
+        logger.info("Architecture NER model loaded successfully.")
+    except Exception as e:
+        logger.error(f"Architecture model load error: {e}.")
 
 if not os.path.exists(STATIC_DIR): os.makedirs(STATIC_DIR)
 if not os.path.exists(PUML_DIR): os.makedirs(PUML_DIR)
@@ -107,11 +120,23 @@ from flask import render_template
 
 
 # --- Extractor Instances ---
-# Pass standard NLP for syntax and custom NER for entities
-class_diagram_extractor = ClassDiagramExtractor(nlp_standard, ner_model=nlp_ner)
-use_case_extractor = UseCaseDiagramExtractor(nlp_standard, ner_model=nlp_ner)
-sequence_extractor = SequenceDiagramExtractor(nlp_standard, ner_model=nlp_ner)
-activity_extractor = ActivityDiagramExtractor(nlp_standard, ner_model=nlp_ner)
+# Behavioral pipeline: Pass standard NLP for syntax and behavioral NER for entities
+class_diagram_extractor = ClassDiagramExtractor(nlp_standard, ner_model=nlp_behavioral)
+use_case_extractor = UseCaseDiagramExtractor(nlp_standard, ner_model=nlp_behavioral)
+sequence_extractor = SequenceDiagramExtractor(nlp_standard, ner_model=nlp_behavioral)
+activity_extractor = ActivityDiagramExtractor(nlp_standard, ner_model=nlp_behavioral)
+
+# Architecture pipeline: Initialize with architecture NER model
+if nlp_architecture:
+    component_diagram_extractor = ComponentDiagramExtractor(nlp_standard, ner_model=nlp_architecture)
+    deployment_diagram_extractor = DeploymentDiagramExtractor(nlp_standard, ner_model=nlp_architecture)
+    logger.info("Architecture extractors initialized with trained NER model")
+else:
+    # Fallback: Use pattern-based extraction only (no NER model)
+    component_diagram_extractor = ComponentDiagramExtractor(nlp_standard, ner_model=None)
+    deployment_diagram_extractor = DeploymentDiagramExtractor(nlp_standard, ner_model=None)
+    logger.warning("Architecture extractors initialized WITHOUT NER model (pattern-based only)")
+
 diagram_generator = DiagramGenerator()
 
 

@@ -11,7 +11,8 @@ POSTGRES_USER = os.environ.get('DB_USER') or 'docker'
 POSTGRES_PASSWORD = os.environ.get('DB_PASSWORD') or 'docker'
 POSTGRES_DB = os.environ.get('DB_NAME') or 'postgres'
 POSTGRES_HOST = os.environ.get('DB_HOST') or '127.0.0.1'
-POSTGRES_PORT = os.environ.get('DB_PORT') or '5432'
+POSTGRES_PORT = os.environ.get('DB_PORT') or '5433'
+
 
 # On Windows, psycopg2/libpq may resolve 'localhost' to IPv6 (::1) first.
 # Force IPv4 for local Docker port publishing to avoid IPv6 auth mismatches.
@@ -23,7 +24,18 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=CONNECT_ARGS)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+
+
+
+
+
+
+
+
 class PersistenceLayer:
+
+
     def create_user(self, username, password_hash):
         import uuid
         try:
@@ -39,6 +51,8 @@ class PersistenceLayer:
             logger.error(f"Create user error: {e}")
             return None
 
+
+
     def get_user_by_username(self, username):
         try:
             result = self.connection.execute(text("SELECT userid, username, passwordhash FROM users WHERE username = :uname"), {"uname": username})
@@ -47,12 +61,19 @@ class PersistenceLayer:
         except Exception as e:
             logger.error(f"Get user error: {e}")
             return None
+    
+    
+    
     def __enter__(self):
         self.connection = engine.connect()
         return self
 
+
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.connection.close()
+
+
 
     def get_all_projects(self):
         try:
@@ -69,20 +90,25 @@ class PersistenceLayer:
             logger.error(f"Get projects error: {e}")
             return []
 
+
+
     def get_project(self, project_id):
         try:
-            result = self.connection.execute(text("SELECT projectid, projectname, userid FROM projects WHERE projectid = :pid"), {"pid": project_id})
+            result = self.connection.execute(text("SELECT projectid, projectname, userid, user_narration FROM projects WHERE projectid = :pid"), {"pid": project_id})
             row = result.mappings().first()
             if row:
                 return {
                     'ProjectID': row['projectid'],
                     'ProjectName': row['projectname'],
-                    'UserID': row['userid']
+                    'UserID': row['userid'],
+                    'UserNarration': row['user_narration']
                 }
             return None
         except Exception as e:
             logger.error(f"Get project error: {e}")
             return None
+
+
 
     def create_project(self, project_name, user_id=None):
         try:
@@ -96,6 +122,8 @@ class PersistenceLayer:
             logger.error(f"Create project error: {e}")
             return None
 
+
+
     def get_stories_as_text(self, project_id):
         try:
             result = self.connection.execute(text("SELECT storytext FROM userstories WHERE projectid = :pid ORDER BY storyid"), {"pid": project_id})
@@ -104,6 +132,8 @@ class PersistenceLayer:
             logger.error(f"Get stories text error: {e}")
             return ""
 
+
+
     def get_stories_list(self, project_id):
         try:
             result = self.connection.execute(text("SELECT storyid, projectid, storytext FROM userstories WHERE projectid = :pid ORDER BY storyid"), {"pid": project_id})
@@ -111,6 +141,8 @@ class PersistenceLayer:
         except Exception as e:
             logger.error(f"Get stories list error: {e}")
             return []
+
+
 
     def save_stories_from_text(self, project_id, stories_text, user_id=None):
         try:
@@ -125,6 +157,8 @@ class PersistenceLayer:
             self.connection.rollback()
             logger.error(f"Save stories error: {e}")
 
+
+
     def delete_model_elements(self, project_id):
         try:
             self.connection.execute(text("DELETE FROM modelelements WHERE projectid = :pid"), {"pid": project_id})
@@ -132,6 +166,8 @@ class PersistenceLayer:
         except Exception as e:
             self.connection.rollback()
             logger.error(f"Delete elements error: {e}")
+
+
 
     def save_model_elements(self, project_id, elements):
         try:
@@ -145,6 +181,8 @@ class PersistenceLayer:
             self.connection.rollback()
             logger.error(f"Save elements error: {e}")
 
+
+
     def get_model_elements(self, project_id):
         try:
             result = self.connection.execute(text("SELECT * FROM modelelements WHERE projectid = :pid"), {"pid": project_id})
@@ -152,3 +190,31 @@ class PersistenceLayer:
         except Exception as e:
             logger.error(f"Get model elements error: {e}")
             return []
+
+    def update_user_narration(self, project_id, user_narration):
+        """Update user narration (architecture context) for a project."""
+        try:
+            self.connection.execute(
+                text("UPDATE projects SET user_narration = :narration WHERE projectid = :pid"),
+                {"narration": user_narration, "pid": project_id}
+            )
+            self.connection.commit()
+            return True
+        except Exception as e:
+            self.connection.rollback()
+            logger.error(f"Update user narration error: {e}")
+            return False
+
+    def get_user_narration(self, project_id):
+        """Get user narration (architecture context) for a project."""
+        try:
+            result = self.connection.execute(
+                text("SELECT user_narration FROM projects WHERE projectid = :pid"),
+                {"pid": project_id}
+            )
+            row = result.first()
+            return row[0] if row else None
+        except Exception as e:
+            logger.error(f"Get user narration error: {e}")
+            return None
+
