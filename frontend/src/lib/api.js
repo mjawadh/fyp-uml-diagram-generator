@@ -1,69 +1,86 @@
 import axios from 'axios'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  withCredentials: true,
+// Create an axios instance with default config
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000',
   headers: {
     'Content-Type': 'application/json',
   },
-}) 
-
-// Add token to requests if it exists
-apiClient.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
+  withCredentials: true, // Important for handling session cookies/CORS
 })
 
-// Handle responses
-apiClient.interceptors.response.use(
-  (response) => {
-    // If response has a 'data' property with success flag, extract it
-    if (response.data && typeof response.data === 'object' && 'success' in response.data) {
-      return response.data.data || response.data
-    }
-    return response.data
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/auth/login'
-      }
-    }
-    return Promise.reject(error.response?.data || error)
-  }
-)
-
+// Auth API endpoints
 export const authAPI = {
-  register: (username, password, confirmPassword) =>
-    apiClient.post('/auth/register', { username, password, confirm_password: confirmPassword }),
+  login: async (username, password) => {
+    try {
+      const response = await api.post('/auth/login', { username, password })
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
   
-  login: (username, password) =>
-    apiClient.post('/auth/login', { username, password }),
-  
-  logout: () => apiClient.post('/auth/logout'),
+  register: async (username, password, confirmPassword) => {
+    try {
+      // Note: Backend expects 'confirm_password', frontend sends 'confirmPassword'
+      const response = await api.post('/auth/register', { 
+        username, 
+        password, 
+        confirm_password: confirmPassword 
+      })
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  logout: async () => {
+    try {
+      const response = await api.get('/auth/logout')
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  }
 }
 
+// Project API endpoints
 export const projectAPI = {
-  getAll: () => apiClient.get('/projects'),
-  
-  getById: (projectId) => apiClient.get(`/project/${projectId}`),
-  
-  create: (projectName) =>
-    apiClient.post('/project/new', { project_name: projectName }),
-  
-  update: (projectId, { user_stories, diagram_type }) =>
-    apiClient.post(`/project/${projectId}/update`, {
-      user_stories,
-      diagram_type,
-    }),
+  getAll: async () => {
+    try {
+      const response = await api.get('/projects')
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  create: async (projectName) => {
+    try {
+      const response = await api.post('/project/new', { project_name: projectName })
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  getById: async (id) => {
+    try {
+      const response = await api.get(`/project/${id}`)
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  },
+
+  update: async (id, data) => {
+    try {
+      const response = await api.post(`/project/${id}/update`, data)
+      return response.data
+    } catch (error) {
+      throw error.response?.data || error.message
+    }
+  }
 }
 
-export default apiClient
+export default api
