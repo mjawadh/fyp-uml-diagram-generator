@@ -6,6 +6,11 @@ from sqlalchemy.exc import OperationalError
 import os
 import logging
 import spacy
+from pyngrok import ngrok
+import threading
+from dotenv import load_dotenv
+
+load_dotenv()
 from models import Base, User, Project
 from auth.authroutes import auth_bp
 from project.projectroutes import project_bp
@@ -26,7 +31,11 @@ app = Flask(__name__)
 app.secret_key = "your-very-secret-key-12345"
 CORS(app, 
      resources={r"/*": {
-         "origins": ["http://localhost:3000"],
+         "origins": [
+             "http://localhost:3000",
+             "https://roslyn-starrier-anne.ngrok-free.dev",
+             "https://uml-diagram-zeta.vercel.app"
+         ],
          "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
          "allow_headers": ["Content-Type", "Authorization"],
          "supports_credentials": True,
@@ -164,5 +173,27 @@ def serve_static(filename):
 # Main
 if __name__ == "__main__":
     from waitress import serve
-    print(f"Starting Production Server (Waitress) on http://localhost:5000...")
-    serve(app, host='localhost', port=5000)
+    
+    # Check if ngrok should be enabled via environment variable
+    USE_NGROK = os.getenv('USE_NGROK', 'false').lower() == 'true'
+    PORT = int(os.getenv('PORT', 5000))
+    
+    if USE_NGROK:
+        try:
+            ngrok_token = os.getenv('NGROK_AUTH_TOKEN')
+            if ngrok_token:
+                ngrok.set_auth_token(ngrok_token)
+            
+            try:
+                ngrok.kill()
+            except:
+                pass
+            
+            ngrok_domain = os.getenv('NGROK_DOMAIN')
+            public_url = ngrok.connect(PORT, domain=ngrok_domain) if ngrok_domain else ngrok.connect(PORT)
+            logger.info(f"Ngrok tunnel: {public_url}")
+        except Exception as e:
+            logger.error(f"Ngrok failed: {e}")
+    
+    logger.info(f"Starting Waitress server on 0.0.0.0:{PORT}")
+    serve(app, host='0.0.0.0', port=PORT)
